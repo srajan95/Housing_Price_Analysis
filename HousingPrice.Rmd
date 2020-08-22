@@ -1,0 +1,181 @@
+---
+title: "Predicitve"
+author: "Srajan Rai"
+date: "11/20/2019"
+output:
+  html_document: default
+  word_document: default
+---
+## Import the House dataset and load few packages 
+```{r,warning=FALSE,message=FALSE}
+House<-read.csv("/Users/apple/Documents/UCD/sem1/Predictive analytics/assignments/House.csv")
+library(GGally)
+library(car)
+library(olsrr)
+```
+## EDA
+#### BoxPlot,Histogram, Summary of House Sale Price
+1. Gives the Boxplots, Histogram and summary for the Sale price of Houses
+```{r}
+#For the summary
+summary(House$Price)
+#Box plot
+boxplot(House$Price)
+#Histogram
+hist(House$Price)
+```
+
+#### 2- categorical variables to factors
+Convert Categorical variables into factors
+```{r}
+House$Bath<-factor(House$Bath)
+House$Bed<-factor(House$Bed)
+House$Garage<-factor(House$Garage)
+House$School<-factor(House$School)
+```
+
+#### Summary and  Boxplot describing how sales price varies with  respect to the number of bedrooms, bathrooms, garage size  and school. 
+```{r,warning=FALSE}
+attach(House)
+boxplot(Price~House$Bed)
+by(Price,Bed,summary)
+
+boxplot(Price~House$Bath)
+by(Price,Bath,summary)
+
+boxplot(Price~House$Garage)
+by(Price,Garage,summary)
+
+boxplot(Price~House$School)
+by(Price,School,summary)
+
+```
+
+#### 3-Correlation, Pairs plot
+Gives an idea about the variables if they correlated or not 
+```{r,warning=FALSE}
+pairs(Price~Size+Year+Lot)
+cor(House[c(1,2,3,6)])
+```
+
+<!-- To avoid the intercept being negative the numerical variables are substracted from their mean values -->
+```{r}
+House$Lot<-House$Lot-mean(House$Lot)
+House$Year<-House$Year-mean(House$Year)
+House$Size<-House$Size-mean(House$Size)
+
+```
+
+
+## Regression model
+### Multiple Linear regression model
+```{r}
+mod<-lm(Price~Lot+Size+Year+Bath+Bed+Garage+School,data=House)
+summary(mod)
+plot(mod)
+```
+## Anova 
+### Type 1 anova and non-significant predictor variable (Year) is removed
+```{r}
+anova(mod)
+mod2<-lm(Price~Lot+Size+Bath+Bed+Garage+School,data = House)
+
+```
+
+### Type 2 anova
+```{r}
+Anova(mod,mod2)
+```
+
+
+## Diagnostics:
+### 1-Added variable plot and component plus residual plot
+```{r}
+avPlots(mod)
+crPlots(mod)
+```
+### 2-Durbin-Watson test
+```{r}
+dwt(mod)
+```
+# 3-Collinearity Check-variation inflation factor
+```{r}
+vif(mod)
+```
+### 4-Zero conditional mean and homoscedasticity
+```{r}
+plot(fitted(mod),rstudent(mod))
+abline(h=0)
+
+par(mfrow=c(4,2))
+plot(House$Size,rstudent(mod))
+plot(House$Lot,rstudent(mod))
+plot(House$Year,rstudent(mod))
+plot(House$Bed,rstudent(mod))
+plot(House$Bath,rstudent(mod))
+plot(House$Garage,rstudent(mod))
+plot(House$School,rstudent(mod))
+```
+
+### 5-Normality Assumption 
+```{r}
+hist(rstudent(mod))
+qqnorm(rstudent(mod))
+qqline(rstudent(mod),col=2)
+```
+
+
+## Leverage, Influence and Outliers:
+### Leverage values and Leverage plots
+```{r}
+
+lev_point<-as.numeric(which(hatvalues(mod)>((2*7)/76)))
+lev_point
+leveragePlots(mod)
+```
+
+### 2- influencial Plot
+```{r}
+
+influencePlot(mod, main="Influence Plot",sub="Circle size is proportial to Cook’s Distance")
+ols_plot_cooksd_bar(mod)
+```
+
+### Outlier
+```{r}
+outlierTest(mod)
+ols_plot_resid_lev(mod)
+```
+### Outliers treated and model built 
+```{r}
+n1<-House
+n1<-n1[-c(44),]
+n1<-n1[-c(30),]
+n1<-n1[-c(25),]
+n1<-n1[-c(15),]
+n1<-n1[-c(32),]
+n1<-n1[-c(32),]
+
+modd<-lm(Price~Lot+Size+Year+Bed+Bath+Garage+School,data = n1)
+outlierTest(modd)
+ols_plot_cooksd_bar(modd)
+ols_plot_resid_lev(modd)
+```
+
+```{r}
+
+ci=predict(mod,level=0.95,interval='confidence')
+
+pi=predict(mod,level=0.95,interval='prediction')
+
+cipiplot = ggplot(House, aes(House$Price,pi[,1])) + geom_point() + geom_smooth(method=lm,aes(color="Regression Line")) + geom_line(aes(y=pi[,2], color="Prediction Interval")) +geom_line(aes(y=ci[,2], color="Confidence Interval"))+geom_line(aes(y=ci[,3], color="Confidence Interval")) + geom_line(aes(y=pi[,3], color="Prediction Interval")) + labs(x="Observed Price", y="Expected Price")+scale_color_manual(values = c("red","blue","black"))+ggtitle("With Outliers")
+
+
+cinew=predict(modd,level=0.95,interval='confidence')
+
+pinew=predict(modd,level=0.95,interval='prediction')
+
+cipiplotnew = ggplot(n1, aes(n1$Price,pinew[,1])) + geom_point() + geom_smooth(method=lm,aes(color="Regression Line")) + geom_line(aes(y=pinew[,2], color="Prediction Interval")) +geom_line(aes(y=cinew[,2], color="Confidence Interval"))+geom_line(aes(y=cinew[,3], color="Confidence Interval")) + geom_line(aes(y=pinew[,3], color="Prediction Interval")) + labs(x="Observed Price", y="Expected Price")+scale_color_manual(values = c("red","blue","black"))+ggtitle("With out Outliers")
+cipiplotnew
+cipiplot
+```
